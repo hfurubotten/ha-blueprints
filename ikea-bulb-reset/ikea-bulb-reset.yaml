@@ -1,0 +1,37 @@
+blueprint:
+  name: IKEA bulb reset
+  description: Script for running factory reset on IKEA bulbs. Controlls a switch which can turn off and on the power to the bulb.
+  domain: script
+  input:
+    switch_target:
+      name: Switch
+      selector:
+        target:
+          entity:
+            domain: switch
+
+mode: single
+max_exceeded: silent
+
+sequence:
+  - alias: Factory reset IKEA bulb
+    sequence:
+      - repeat:
+        count: '6'
+        sequence:
+        - service: switch.turn_on
+          target: !input switch_target
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 700
+        - service: switch.turn_off
+          target: !input switch_target
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+        milliseconds: 700
+  - service: switch.turn_on
+    target: !input switch_target
