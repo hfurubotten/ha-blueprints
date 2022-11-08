@@ -14,11 +14,9 @@ mode: single
 max_exceeded: silent
 
 sequence:
-  - alias: Factory reset IKEA bulb
-    sequence:
-      - repeat:
-        count: '6'
-        sequence:
+  - repeat:
+      count: "6"
+      sequence:
         - service: switch.turn_on
           target: !input switch_target
         - delay:
@@ -32,6 +30,6 @@ sequence:
             hours: 0
             minutes: 0
             seconds: 0
-        milliseconds: 700
+            milliseconds: 700
   - service: switch.turn_on
     target: !input switch_target
