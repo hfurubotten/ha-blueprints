@@ -1,0 +1,51 @@
+blueprint:
+  name: Sun-activated Light
+  description: Turn on and off a light on sunrise and sunset.
+  domain: automation
+  input:
+    light_entity:
+      name: Light
+      selector:
+        entity:
+          domain: light
+
+trigger:
+  - platform: sun
+    event: sunrise
+    offset: "00:30:00"
+    id: sunrise
+  - platform: sun
+    event: sunset
+    offset: "-00:30:00"
+    id: sunset
+  - platform: time
+    at: "05:00:00"
+    id: early
+  - platform: time
+    at: "01:34:56"
+    id: late
+
+action:
+  - alias: "Choose action"
+    choose:
+      - conditions:
+          - condition: trigger
+            id: "sunrise"
+        sequence:
+          - alias: "Turn off the light on sunrise"
+            service: light.turn_off
+            target:
+              entity_id: !input light_entity
+      - conditions:
+          - condition: trigger
+            id: "late"
+        sequence:
+          - alias: "Turn off the light on late in the evening"
+            service: light.turn_off
+            target:
+              entity_id: !input light_entity
+    default:
+      - alias: "Turn on the light as default"
+        service: light.turn_on
+        target:
+          entity_id: !input light_entity

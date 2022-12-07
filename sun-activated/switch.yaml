@@ -1,0 +1,51 @@
+blueprint:
+  name: Sun-activated Switch
+  description: Turn on and off a switch on sunrise and sunset.
+  domain: automation
+  input:
+    switch_entity:
+      name: Switch
+      selector:
+        entity:
+          domain: switch
+
+trigger:
+  - platform: sun
+    event: sunrise
+    offset: "00:30:00"
+    id: sunrise
+  - platform: sun
+    event: sunset
+    offset: "-00:30:00"
+    id: sunset
+  - platform: time
+    at: "05:00:00"
+    id: early
+  - platform: time
+    at: "01:34:56"
+    id: late
+
+action:
+  - alias: "Choose action"
+    choose:
+      - conditions:
+          - condition: trigger
+            id: "sunrise"
+        sequence:
+          - alias: "Turn off the switch on sunrise"
+            service: switch.turn_off
+            target:
+              entity_id: !input switch_entity
+      - conditions:
+          - condition: trigger
+            id: "late"
+        sequence:
+          - alias: "Turn off the switch on late in the evening"
+            service: switch.turn_off
+            target:
+              entity_id: !input switch_entity
+    default:
+      - alias: "Turn on the switch as default"
+        service: switch.turn_on
+        target:
+          entity_id: !input switch_entity
