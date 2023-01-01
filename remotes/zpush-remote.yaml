@@ -1,14 +1,15 @@
 blueprint:
-  name: Trigger light with Namron remote
-  description: Toggle lights or switches with a namron remote, or dim lights by holding the button down.
+  name: Trigger light with Z-Push remote
+  description: Toggle lights or switches with a Z-Push remote, or dim lights by holding the button down.
   domain: automation
   input:
-    namron_device:
-      name: Namron device
-      description: The namron switch device to use as a remote.
+    push_device:
+      name: HeatIt Z-Push device
+      description: The Z-Push switch device to use as a remote.
       selector:
         device:
-          manufacturer: NAMRON AS
+          integration: zwave_js
+          # manufacturer: Future Home AS
     targets:
       name: Button targets
       description: Which light or switch to control for the buttons on the device. The ordering of devices here will correspond with the button ordering on your device.
@@ -19,60 +20,50 @@ blueprint:
             - light
             - switch
 
+mode: single
+
 variables:
   targets: !input targets
 
 trigger:
   - platform: event
-    event_type: zha_event
+    event_type: zwave_js_value_notification
     event_data:
-      device_id: !input namron_device
-      command: "on"
-    id: on_trigger
+      device_id: !input push_device
+      value: "KeyPressed"
+    id: key_pressed_trigger
   - platform: event
-    event_type: zha_event
+    event_type: zwave_js_value_notification
     event_data:
-      device_id: !input namron_device
-      command: "off"
-    id: off_trigger
-  - platform: event
-    event_type: zha_event
-    event_data:
-      device_id: !input namron_device
-      command: "move_with_on_off"
+      device_id: !input push_device
+      value: "KeyHeldDown"
     id: dim_trigger
 
 action:
+  - variables:
+      button_group: "{{(trigger.event.data.property_key | int / 2) | round(0, 'ceil') }}"
+      on_or_off: "{{(trigger.event.data.property_key | int % 2) | round(0, 'ceil') | bool }}"
   - if:
       - alias: "No entity for button"
         condition: template
         value_template: |
-          {{ (trigger.event.data.endpoint_id | int) > ( targets | length ) }}
+          {{ (button_group | int) > ( targets | length ) }}
     then:
       - stop: "The button number does not have a target."
   - alias: "Set target variable"
     variables:
       target: |
-        {{ targets[ trigger.event.data.endpoint_id - 1 ] }}
+        {{ targets[ button_group - 1 ] }}
   - variables:
       target_domain: |
         {{ states[ target ].domain }}
   - choose:
       - conditions:
           - condition: trigger
-            id: on_trigger
+            id: key_pressed_trigger
         sequence:
           - service: |
-              {{ target_domain }}.turn_on
-            target:
-              entity_id: |
-                {{ target }}
-      - conditions:
-          - condition: trigger
-            id: off_trigger
-        sequence:
-          - service: |
-              {{ target_domain }}.turn_off
+              {{ target_domain }}.turn_{{'on' if on_or_off else 'off'}}
             target:
               entity_id: |
                 {{ target }}
@@ -90,13 +81,12 @@ action:
                       {{ target }}
                   data_template:
                     brightness_step_pct: |
-                      {{ 4 if trigger.event.data.params.move_mode == 0 else -4 }}
+                      {{ 4 if on_or_off else -4 }}
                 - wait_for_trigger:
                     platform: event
-                    event_type: zha_event
+                    event_type: zwave_js_value_notification
                     event_data:
-                      device_id: !input namron_device
-                      command: "stop_with_on_off"
-                      endpoint_id: "{{trigger.event.data.endpoint_id}}"
+                      device_id: !input push_device
+                      value: "KeyReleased"
                   timeout:
                     milliseconds: 150
