@@ -89,7 +89,7 @@ action:
   - alias: "Do not turn on again if off"
     if:
       - "{{ (expand(lights.entity_id) if 'entity_id' in lights else []) | selectattr('state', 'match', 'on') | list | count == 0 }}"
-      - "{{ (area_entities(lights.area_id) if 'area_id' in lights else []) | selectattr('domain', 'match', 'light') | selectattr('state', 'match', 'on') | list | count == 0 }}"
+      - "{{ (expand(area_entities(lights.area_id)) if 'area_id' in lights else []) | selectattr('domain', 'match', 'light') | selectattr('state', 'match', 'on') | list | count == 0 }}"
     then:
       - stop: "All lights are off, so we won't turn them on again."
   - alias: "Dim the light"
