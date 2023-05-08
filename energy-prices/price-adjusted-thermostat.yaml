@@ -1,0 +1,161 @@
+blueprint:
+  name: Price adjusted thermostat w/ day/night lowering
+  description: |
+    Adjusts the temperature on a thermostat from the el price, with day and night lowering.
+  domain: automation
+  input:
+    price_level_entity:
+      name: Prive Level
+      description: The price level attribute from the tibber price level.
+      selector:
+        entity:
+          domain:
+            - sensor
+            - input_select
+    climate_entity:
+      name: Thermostat to adjust
+      description: The thermostat to adjust the temperature of.
+      selector:
+        entity:
+          domain: climate
+    target_templerature:
+      name: Target temperature
+      description: The wanted temperture on normal price level.
+      default: 20
+      selector:
+        number:
+          min: 10
+          max: 30
+          unit_of_measurement: °C
+          step: 0.5
+    very_cheap_correction:
+      name: Very cheap correction
+      description: The number of degrees to correct to when the price is very cheap.
+      default: 1
+      selector:
+        number:
+          min: -5
+          max: 5
+          unit_of_measurement: °C
+          step: 0.5
+    cheap_correction:
+      name: Cheap correction
+      description: The number of degrees to correct to when the price is  cheap.
+      default: 0.5
+      selector:
+        number:
+          min: -5
+          max: 5
+          unit_of_measurement: °C
+          step: 0.5
+    expensive_correction:
+      name: Expensive correction
+      description: The number of degrees to correct to when the price is expensive.
+      default: -1
+      selector:
+        number:
+          min: -5
+          max: 5
+          unit_of_measurement: °C
+          step: 0.5
+    very_expensive_correction:
+      name: Very expensive correction
+      description: The number of degrees to correct to when the price is very expensive.
+      default: -1.5
+      selector:
+        number:
+          min: -5
+          max: 5
+          unit_of_measurement: °C
+          step: 0.5
+    day_night_lowering_schedule:
+      name: Day and night lowering schedule
+      description: A schedule entity for when to lower the temperature.
+      selector:
+        entity:
+          domain:
+            - schedule
+    additional_lowering_adjustment:
+      name: Additional day and night lowering adjustment
+      description: The number of degrees to adjust to when the day and night lowering schedule is on.
+      default: -3
+      selector:
+        number:
+          min: -5
+          max: 5
+          unit_of_measurement: °C
+          step: 0.5
+
+variables:
+  target_templerature: !input target_templerature
+  very_cheap_correction: !input very_cheap_correction
+  cheap_correction: !input cheap_correction
+  expensive_correction: !input expensive_correction
+  very_expensive_correction: !input very_expensive_correction
+  day_night_lowering_schedule: !input day_night_lowering_schedule
+  additional_lowering_adjustment: !input additional_lowering_adjustment
+
+trigger:
+  - platform: state
+    entity_id: !input price_level_entity
+  - platform: state
+    entity_id: !input day_night_lowering_schedule
+
+action:
+  - variables:
+      day_night_lowering: |
+        {{ additional_lowering_adjustment if is_state(day_night_lowering_schedule, "on") else 0.0 }}
+
+  - alias: Adjust the thermostat
+    choose:
+      - conditions:
+          - condition: state
+            entity_id: !input price_level_entity
+            state: "VERY_CHEAP"
+        sequence:
+          service: climate.set_temperature
+          target:
+            entity_id: !input climate_entity
+          data_template:
+            temperature: |
+              {{ target_templerature + very_cheap_correction + day_night_lowering }}
+      - conditions:
+          - condition: state
+            entity_id: !input price_level_entity
+            state: "CHEAP"
+        sequence:
+          service: climate.set_temperature
+          target:
+            entity_id: !input climate_entity
+          data_template:
+            temperature: |
+              {{ target_templerature + cheap_correction + day_night_lowering }}
+      - conditions:
+          - condition: state
+            entity_id: !input price_level_entity
+            state: "EXPENSIVE"
+        sequence:
+          service: climate.set_temperature
+          target:
+            entity_id: !input climate_entity
+          data_template:
+            temperature: |
+              {{ target_templerature + expensive_correction + day_night_lowering }}
+      - conditions:
+          - condition: state
+            entity_id: !input price_level_entity
+            state: "VERY_EXPENSIVE"
+        sequence:
+          service: climate.set_temperature
+          target:
+            entity_id: !input climate_entity
+          data_template:
+            temperature: |
+              {{ target_templerature + very_expensive_correction + day_night_lowering }}
+    default:
+      - service: climate.set_temperature
+        target:
+          entity_id: !input climate_entity
+        data_template:
+          temperature: |
+            {{ target_templerature + day_night_lowering }}

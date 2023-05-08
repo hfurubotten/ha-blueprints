@@ -1,0 +1,104 @@
+blueprint:
+  name: Price controlled switch
+  description: Turn on and off a switch from the current price level.
+  domain: automation
+  input:
+    price_level_entity:
+      name: Prive Level
+      description: The price level attribute from the tibber price level.
+      selector:
+        entity:
+          domain:
+            - sensor
+            - input_select
+    switch_target:
+      name: Switch to controll
+      description: The switch that should be turned on or off depending on the current price level.
+      selector:
+        target:
+          entity:
+            domain: switch
+    enabled_for_very_cheap:
+      name: Enabled on very cheap
+      description: If the switch should be turned on when the price level is `VERY_CHEAP`
+      default: true
+      selector:
+        boolean:
+    enabled_for_cheap:
+      name: Enabled on cheap
+      description: If the switch should be turned on when the price level is `CHEAP`
+      default: true
+      selector:
+        boolean:
+    enabled_for_normal:
+      name: Enabled on normal
+      description: If the switch should be turned on when the price level is `NORMAL`
+      default: false
+      selector:
+        boolean:
+    enabled_for_expensive:
+      name: Enabled on expensive
+      description: If the switch should be turned on when the price level is `EXPENSIVE`
+      default: false
+      selector:
+        boolean:
+    enabled_for_very_expensive:
+      name: Enabled on very expensive
+      description: If the switch should be turned on when the price level is `VERY_EXPENSIVE`
+      default: false
+      selector:
+        boolean:
+    turn_on_delay:
+      name: Turn on delay
+      description: |
+        Wait time before the swich is turned on again. 
+        If many switches turns on at the same time it might cause too much to be drawn at the same time, this enables you to space them out.
+      default: "00:00:00"
+      selector:
+        time:
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input price_level_entity
+
+variables:
+  price_level_entity: !input price_level_entity
+  enabled_for_very_cheap: !input enabled_for_very_cheap
+  enabled_for_cheap: !input enabled_for_cheap
+  enabled_for_normal: !input enabled_for_normal
+  enabled_for_expensive: !input enabled_for_expensive
+  enabled_for_very_expensive: !input enabled_for_very_expensive
+
+action:
+  - alias: Make sure state change has gone through
+    delay:
+      seconds: 2
+  - variables:
+      level: "{{ states(price_level_entity) }}"
+  - variables:
+      should_be_on: |
+        {%- if level == 'VERY_CHEAP' -%}
+          {{ enabled_for_very_cheap }}
+        {%- elif level == 'CHEAP' -%}
+          {{ enabled_for_cheap }}
+        {%- elif level == 'EXPENSIVE' -%}
+          {{ enabled_for_expensive }}
+        {%- elif level == 'VERY_EXPENSIVE' -%}
+          {{ enabled_for_very_expensive }}
+        {%- else -%}
+          {{ enabled_for_normal }}
+        {%- endif -%}
+  - service: system_log.write
+    data:
+      message: |
+        Found the following price level: {{ level }}
+        And because of that, should the switch be on: {{ should_be_on }}
+      level: debug
+  - if:
+      - "{{ should_be_on }}"
+    then:
+      - delay: !input turn_on_delay
+  - service: "{{ 'switch.turn_off' if should_be_on == false else 'switch.turn_on' }}" # it is turned around to get default on if not boolean
+    target: !input switch_target
