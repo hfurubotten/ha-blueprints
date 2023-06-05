@@ -44,6 +44,13 @@ action:
             service: switch.turn_off
             target:
               entity_id: !input switch_entity
+      - conditions:
+          - condition: trigger
+            id: early
+          - condition: sun
+            after: sunrise
+        sequence:
+          - stop: Stop turning on lights as the sun is up in a few moments anyway
     default:
       - alias: "Turn on the switch as default"
         service: switch.turn_on
