@@ -2,7 +2,7 @@ blueprint:
   name: Price level calculator
   description: |
     Calculates the current price level from todays and tomorrows prices. 
-    It needs a sensor that has two specific attributes, `today` and `tomorrow, that tells the prices for the next one or two days.
+    It needs a sensor that has two specific attributes, `today` and `tomorrow`, that tells the prices for the next one or two days.
     These will be used together with the grid rent prices given below. The grid rent prices assumes price periods 06-22 and 22-06.
   domain: automation
   input:
