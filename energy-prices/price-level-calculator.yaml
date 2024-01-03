@@ -21,23 +21,33 @@ blueprint:
           integration: nordpool
     nettleie_price_day:
       name: Nettleie price day
-      default: 0.49
+      default: 0.4738
       selector:
         number:
           min: 0.01
           max: 2.34
           mode: box
-          step: 0.0001
+          step: 0.001
           unit_of_measurement: NOK
     nettleie_price_night:
       name: Nettleie price night and weekends
-      default: 0.39
+      default: 0.3558
       selector:
         number:
           min: 0.01
           max: 2.34
           mode: box
-          step: 0.0001
+          step: 0.001
+          unit_of_measurement: NOK
+    stromstotte_limit:
+      name: Strømstøtte limit
+      default: 0.9125
+      selector:
+        number:
+          min: 0.01
+          max: 2.34
+          mode: box
+          step: 0.001
           unit_of_measurement: NOK
 
 trigger:
@@ -49,6 +59,7 @@ variables:
   prices_entity: !input prices_entity
   nettleie_price_day: !input nettleie_price_day
   nettleie_price_night: !input nettleie_price_night
+  stromstotte_limit: !input stromstotte_limit
 
 action:
   - alias: Find all the prices
@@ -61,9 +72,45 @@ action:
     data:
       message: |
         Nettleie today: {{ nettleie_td }}
-        Nettleie tomorrow: {{ nettleie_td }}
+        Nettleie tomorrow: {{ nettleie_tm }}
         Price today: {{ today }}
         Price tomorrow: {{ tomorrow }}
+      level: debug
+  - alias: Calculate strømstøtte
+    variables:
+      stromstotte_td: |
+        {%- set ns = namespace() -%}
+        {%- set ns.today_ss = [] -%}
+        {# Calculate in nettleie #}
+        {%- for i in range(25) -%}
+          {%- if today | count > i -%}
+            {%- if today[i] >= stromstotte_limit -%}
+              {%- set ns.today_ss = ns.today_ss + [ ((today[i] - stromstotte_limit)*0.9) | round(3) ] -%}
+            {%- else -%}
+              {%- set ns.today_ss = ns.today_ss + [ 0 ] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ ns.today_ss }}
+      stromstotte_tm: |
+        {%- set ns = namespace() -%}
+        {%- set ns.tomorrow_ss = [] -%}
+        {# Calculate in nettleie #}
+        {%- for i in range(25) -%}
+          {%- if tomorrow | count > i -%}
+            {%- if tomorrow[i] >= stromstotte_limit -%}
+              {%- set ns.tomorrow_ss = ns.tomorrow_ss + [ ((tomorrow[i] - stromstotte_limit)*0.9) | round(3) ] -%}
+            {%- else -%}
+              {%- set ns.tomorrow_ss = ns.tomorrow_ss + [ 0 ] -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ ns.tomorrow_ss }}
+  - service: system_log.write
+    data:
+      message: |
+        Strømstøtte today: {{ stromstotte_td }}
+        Strømstøtte tomorrow: {{ stromstotte_tm }}
       level: debug
   - alias: Set prices with nettleie
     variables:
@@ -73,7 +120,7 @@ action:
         {# Calculate in nettleie #}
         {%- for i in range(25) -%}
           {%- if today | count > i -%}
-            {%- set ns.today_wn = ns.today_wn + [ (today[i] + nettleie_td[i]) | round(3) ] -%}
+            {%- set ns.today_wn = ns.today_wn + [ (today[i] + nettleie_td[i] - stromstotte_td[i]) | round(3) ] -%}
           {%- endif -%}
         {%- endfor -%}
         {{ ns.today_wn }}
@@ -83,7 +130,7 @@ action:
         {# Calculate in nettleie #}
         {%- for i in range(25) -%}
           {%- if tomorrow | count > i -%}
-            {%- set ns.tomorrow_wn = ns.tomorrow_wn + [ (tomorrow[i] + nettleie_tm[i]) | round(3) ] -%}
+            {%- set ns.tomorrow_wn = ns.tomorrow_wn + [ (tomorrow[i] + nettleie_tm[i] - stromstotte_tm[i]) | round(3) ] -%}
           {%- endif -%}
         {%- endfor -%}
         {{ ns.tomorrow_wn }}
@@ -111,10 +158,18 @@ action:
         Min: {{ min }}
         Diff: {{ diff }}
       level: debug
+  - alias: Find current price
+    variables:
+      # uses current price set by entity because day time savings time is annoying and this is easier
+      current_price: "{{ (states(prices_entity) | float) + (nettleie_td[ now().hour ] | float) - (stromstotte_td[ now().hour ] | float) }}"
+  - service: system_log.write
+    data:
+      message: |
+        Kalkulert nå pris: {{ current_price }}
+      level: debug
   - alias: Find the price level
     variables:
       price_level: |
-        {%- set current_price = (states(prices_entity) | float) + (nettleie_td[ now().hour ] | float) -%}
         {%- if current_price < ((diff * 0.15) + min) -%}
           VERY_CHEAP
         {%- elif current_price < ((diff * 0.35) + min) -%}
